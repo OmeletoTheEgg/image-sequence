@@ -60,19 +60,14 @@ class ImportImagesOperator(bpy.types.Operator, AddObjectHelper, ImportHelper):
 
         group_input_node = img_seq_group.nodes.new("NodeGroupInput")
         group_output_node = img_seq_group.nodes.new("NodeGroupOutput")
-        mult_node = img_seq_group.nodes.new('ShaderNodeMath')
-        mult_node.operation = 'MULTIPLY'
-        mult_node.inputs[1].default_value = len(images) + 1
         ceil_node = img_seq_group.nodes.new('ShaderNodeMath')
         ceil_node.operation = 'CEIL'
 
         group_input_node.location = (node_x_pos, node_y_pos + 600)
-        mult_node.location = (node_x_pos + 300, node_y_pos + 600)
-        ceil_node.location = (node_x_pos + 600, node_y_pos + 600)
+        ceil_node.location = (node_x_pos + 300, node_y_pos + 600)
         group_output_node.location = (node_x_pos + 900, node_y_pos + 600)
 
-        img_seq_group.links.new(group_input_node.outputs['Frame'], mult_node.inputs[0])
-        img_seq_group.links.new(mult_node.outputs['Value'], ceil_node.inputs[0])
+        img_seq_group.links.new(group_input_node.outputs['Frame'], ceil_node.inputs[0])
 
         for image in images:
             texture_node = img_seq_group.nodes.new('ShaderNodeTexImage')
