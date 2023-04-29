@@ -52,9 +52,11 @@ class ImportImagesOperator(bpy.types.Operator, AddObjectHelper, ImportHelper):
             images.append(load_image(file.name, self.directory, check_existing=True, force_reload=False))
 
         node_spacing = 300  
-        node_x_pos = 0      
+        node_x_pos = 0
+        node_x_origin = 0
         node_y_pos = 0
         node_y_offset = 0
+        node_x_wrap_max = 9000
         index = 0
         prev_pick_node = None
 
@@ -72,12 +74,16 @@ class ImportImagesOperator(bpy.types.Operator, AddObjectHelper, ImportHelper):
         for image in images:
             texture_node = img_seq_group.nodes.new('ShaderNodeTexImage')
             texture_node.image = image
-            texture_node.location = (node_x_pos, node_y_pos)
+            texture_node.location = (node_x_pos, node_y_pos - node_y_offset)
 
             pick_node = img_seq_group.nodes.new("ShaderNodeGroup")
             pick_node.node_tree = bpy.data.node_groups['Pick Image']
-            pick_node.location = (node_x_pos + 100, node_y_pos + 300)
+            pick_node.location = (node_x_pos + 100, node_y_pos + 300 - node_y_offset)
             pick_node.inputs[5].default_value = index
+
+            if node_x_pos >= node_x_wrap_max:
+                node_x_pos = node_x_origin
+                node_y_offset += 600
             node_x_pos += node_spacing
 
             img_seq_group.links.new(texture_node.outputs['Color'], pick_node.inputs['Color2'])
