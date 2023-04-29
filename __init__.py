@@ -14,8 +14,6 @@ bl_info = {
     "category": "Import-Export"
 }
 
-
-
 class ImportImagesPanel(bpy.types.Panel):
     """Creates a Panel in the Object properties window"""
     bl_label = "Image Importer"
@@ -39,8 +37,11 @@ class ImportImagesOperator(bpy.types.Operator, AddObjectHelper, ImportHelper):
     directory: bpy.props.StringProperty(maxlen=1024, subtype='FILE_PATH', options={'HIDDEN', 'SKIP_SAVE'})
 
     def execute(self, context):
-        # Get active material
-        material = bpy.context.active_object.active_material
+        # Create node group img_seq_group
+        img_seq_group = bpy.data.node_groups.new("Image Sequence Group", 'ShaderNodeTree')
+        img_seq_group.inputs.new('NodeSocketFloat', 'Frame')
+        img_seq_group.outputs.new('NodeSocketColor', 'Color')
+        img_seq_group.outputs.new('NodeSocketFloat', 'Alpha')
         
         if 'Pick Image' not in bpy.data.node_groups:
             create_pick_image_node_group()
@@ -50,35 +51,56 @@ class ImportImagesOperator(bpy.types.Operator, AddObjectHelper, ImportHelper):
         for file in self.files:
             images.append(load_image(file.name, self.directory, check_existing=True, force_reload=False))
 
-        # Create texture nodes for each image
         node_spacing = 300  
         node_x_pos = 0      
         node_y_pos = 0
+        node_y_offset = 0
         index = 0
         prev_pick_node = None
-        for image in images:
-            texture_node = material.node_tree.nodes.new('ShaderNodeTexImage')
-            texture_node.image = image
-            texture_node.location = (node_x_pos, node_y_pos)  # Set the node location
 
-            pick_node = material.node_tree.nodes.new("ShaderNodeGroup")
+        group_input_node = img_seq_group.nodes.new("NodeGroupInput")
+        group_output_node = img_seq_group.nodes.new("NodeGroupOutput")
+        mult_node = img_seq_group.nodes.new('ShaderNodeMath')
+        mult_node.operation = 'MULTIPLY'
+        mult_node.inputs[1].default_value = len(images) + 1
+        ceil_node = img_seq_group.nodes.new('ShaderNodeMath')
+        ceil_node.operation = 'CEIL'
+
+        group_input_node.location = (node_x_pos, node_y_pos + 600)
+        mult_node.location = (node_x_pos + 300, node_y_pos + 600)
+        ceil_node.location = (node_x_pos + 600, node_y_pos + 600)
+        group_output_node.location = (node_x_pos + 900, node_y_pos + 600)
+
+        img_seq_group.links.new(group_input_node.outputs['Frame'], mult_node.inputs[0])
+        img_seq_group.links.new(mult_node.outputs['Value'], ceil_node.inputs[0])
+
+        for image in images:
+            texture_node = img_seq_group.nodes.new('ShaderNodeTexImage')
+            texture_node.image = image
+            texture_node.location = (node_x_pos, node_y_pos)
+
+            pick_node = img_seq_group.nodes.new("ShaderNodeGroup")
             pick_node.node_tree = bpy.data.node_groups['Pick Image']
             pick_node.location = (node_x_pos + 100, node_y_pos + 300)
             pick_node.inputs[5].default_value = index
-            node_x_pos += node_spacing  # Update the x position for the next node
+            node_x_pos += node_spacing
 
-            material.node_tree.links.new(texture_node.outputs['Color'], pick_node.inputs['Color2'])
-            material.node_tree.links.new(texture_node.outputs['Alpha'], pick_node.inputs['Float2'])
+            img_seq_group.links.new(texture_node.outputs['Color'], pick_node.inputs['Color2'])
+            img_seq_group.links.new(texture_node.outputs['Alpha'], pick_node.inputs['Float2'])
+
+            img_seq_group.links.new(ceil_node.outputs['Value'], pick_node.inputs['Index'])
 
             if prev_pick_node is not None:
-                material.node_tree.links.new(prev_pick_node.outputs['Color'], pick_node.inputs['Color1'])
-                material.node_tree.links.new(prev_pick_node.outputs['Alpha'], pick_node.inputs['Float1'])
+                img_seq_group.links.new(prev_pick_node.outputs['Color'], pick_node.inputs['Color1'])
+                img_seq_group.links.new(prev_pick_node.outputs['Alpha'], pick_node.inputs['Float1'])
             
             prev_pick_node = pick_node
-
             index += 1
 
-        
+        img_seq_group.links.new(prev_pick_node.outputs['Color'], group_output_node.inputs['Color'])
+        img_seq_group.links.new(prev_pick_node.outputs['Alpha'], group_output_node.inputs['Alpha'])
+
+        bpy.context.active_object.active_material.node_tree.nodes.new("ShaderNodeGroup").node_tree = bpy.data.node_groups['Image Sequence Group']
 
         return {'FINISHED'}
 
