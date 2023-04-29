@@ -37,70 +37,75 @@ class ImportImagesOperator(bpy.types.Operator, AddObjectHelper):
     directory: bpy.props.StringProperty(maxlen=1024, subtype='FILE_PATH', options={'HIDDEN', 'SKIP_SAVE'})
 
     def execute(self, context):
-        # # Get active material
-        # material = bpy.context.active_object.active_material
+        # Get active material
+        material = bpy.context.active_object.active_material
 
-        # # Get selected images
-        # images = []
-        # for file in self.files:
-        #     images.append(load_image(file.name, self.directory, check_existing=True, force_reload=False))
+        # Get selected images
+        images = []
+        for file in self.files:
+            images.append(load_image(file.name, self.directory, check_existing=True, force_reload=False))
 
-        # # Create texture nodes for each image
-        # node_spacing = 200  # Set the spacing between nodes
-        # node_x_pos = 0      # Set the initial x position
-        # node_y_pos = 0      # Set the initial y position
-        # for image in images:
-        #     texture_node = material.node_tree.nodes.new('ShaderNodeTexImage')
-        #     texture_node.image = image
-        #     texture_node.location = (node_x_pos, node_y_pos)  # Set the node location
-        #     node_x_pos += node_spacing  # Update the x position for the next node
+        # Create texture nodes for each image
+        node_spacing = 200  # Set the spacing between nodes
+        node_x_pos = 0      # Set the initial x position
+        node_y_pos = 0      # Set the initial y position
+        for image in images:
+            texture_node = material.node_tree.nodes.new('ShaderNodeTexImage')
+            texture_node.image = image
+            texture_node.location = (node_x_pos, node_y_pos)  # Set the node location
+            node_x_pos += node_spacing  # Update the x position for the next node
 
-        node_group_name = "Pick Image"
-        node_group = bpy.data.node_groups.new(node_group_name, 'ShaderNodeTree')
+        # Create a node group
+        node_group = bpy.data.node_groups.new("A", 'ShaderNodeTree')
 
         # Create nodes
+        group_input_node = node_group.nodes.new("NodeGroupInput")
+        group_output_node = node_group.nodes.new("NodeGroupOutput")
         math_node = node_group.nodes.new('ShaderNodeMath')
+        math_node.operation = 'GREATER_THAN'
         mix_node1 = node_group.nodes.new('ShaderNodeMixRGB')
         mix_node2 = node_group.nodes.new('ShaderNodeMixRGB')
 
         # Set node positions
+        group_input_node.location = (-600, 0)
+        group_output_node.location = (300, 0)
         math_node.location = (-300, 0)
         mix_node1.location = (0, 200)
         mix_node2.location = (0, -200)
 
-        # # Link nodes
-        # node_group.links.new(math_node.outputs['Value'], mix_node1.inputs['Fac'])
-        # node_group.links.new(math_node.outputs['Value'], mix_node2.inputs['Fac'])
+        # Link nodes
+        # math_node.inputs['Value'].link(mix_node1.inputs['Factor'])
+        # math_node.inputs['Value'].link(mix_node2.inputs['Factor'])
+        node_group.links.new(math_node.outputs['Value'], mix_node1.inputs['Fac'])
+        node_group.links.new(math_node.outputs['Value'], mix_node2.inputs['Fac'])
 
-        # # Set input sockets
-        # input_names = ['Index', 'Color1', 'Float1', 'Color2', 'Float2', 'Equal to']
-        # input_links = [
-        #     (math_node.inputs['Value'], 'Index'),
-        #     (mix_node1.inputs['Color1'], 'Color1'),
-        #     (mix_node2.inputs['Color1'], 'Float1'),
-        #     (mix_node1.inputs['Color2'], 'Color2'),
-        #     (mix_node2.inputs['Color2'], 'Float2'),
-        #     (math_node.inputs['Threshold'], 'Equal to')
-        # ]
-        # for i in range(len(input_names)):
-        #     input_socket_name = input_names[i]
-        #     input_socket_link = input_links[i]
-        #     input_socket_link[0].name = input_socket_name
-        #     node_group.inputs.new('NodeSocket' + input_socket_link[0].type, input_socket_name)
-        #     node_group.links.new(input_socket_link[0], input_socket_link[1])
+        # Create inputs and outputs
+        node_group.inputs.new('NodeSocketFloat', 'Index')
+        node_group.inputs.new('NodeSocketColor', 'Color1')
+        node_group.inputs.new('NodeSocketFloat', 'Float1')
+        node_group.inputs.new('NodeSocketColor', 'Color2')
+        node_group.inputs.new('NodeSocketFloat', 'Float2')
+        node_group.inputs.new('NodeSocketFloat', 'Equal to')
+        node_group.outputs.new('NodeSocketColor', 'Color')
+        node_group.outputs.new('NodeSocketFloat', 'Alpha')
 
-        # # Set output sockets
-        # output_names = ['Color', 'Alpha']
-        # output_links = [
-        #     (mix_node1.outputs['Color'], 'Color'),
-        #     (mix_node2.outputs['Alpha'], 'Alpha')
-        # ]
-        # for i in range(len(output_names)):
-        #     output_socket_name = output_names[i]
-        #     output_socket_link = output_links[i]
-        #     output_socket_link[0].name = output_socket_name
-        #     node_group.outputs.new('NodeSocket' + output_socket_link[0].type, output_socket_name)
-        #     node_group.links.new(output_socket_link[0], output_socket_link[1])
+        # Link inputs
+        node_group.links.new(group_input_node.outputs['Index'], math_node.inputs[0])
+        node_group.links.new(group_input_node.outputs['Color1'], mix_node1.inputs['Color1'])
+        node_group.links.new(group_input_node.outputs['Float1'], mix_node2.inputs['Color1'])
+        node_group.links.new(group_input_node.outputs['Color2'], mix_node1.inputs['Color2'])
+        node_group.links.new(group_input_node.outputs['Float2'], mix_node2.inputs['Color2'])
+        node_group.links.new(group_input_node.outputs['Equal to'], math_node.inputs[1])
+
+        # node_group.inputs['Index'].link(math_node.inputs['Value'])
+        # node_group.inputs['Color1'].link(mix_node1.inputs['Color1'])
+        # node_group.inputs['Float1'].link(mix_node2.inputs['Color1'])
+        # node_group.inputs['Color2'].link(mix_node1.inputs['Color2'])
+        # node_group.inputs['Float2'].link(mix_node2.inputs['Color2'])
+        # node_group.inputs['Equal to'].link(math_node.inputs['Threshold'])
+
+        node_group.links.new(mix_node1.outputs['Color'], group_output_node.inputs['Color'])
+        node_group.links.new(mix_node2.outputs['Color'], group_output_node.inputs['Alpha'])
 
         return {'FINISHED'}
 
