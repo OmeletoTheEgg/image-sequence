@@ -128,6 +128,7 @@ def create_image_sequence_node_group(images):
     for image in images:
         texture_node = img_seq_group.nodes.new('ShaderNodeTexImage')
         texture_node.image = image
+        texture_node.interpolation = 'Closest'
         texture_node.location = (node_x_pos, node_y_pos - node_y_offset)
 
         pick_node = img_seq_group.nodes.new("ShaderNodeGroup")
